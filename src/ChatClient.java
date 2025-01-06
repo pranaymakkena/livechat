@@ -1,61 +1,53 @@
+import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.*;
 import java.net.*;
-import javax.swing.*;
 
 public class ChatClient {
-    private String serverAddress = "localhost";  // Set to Heroku server if deploying online
-    private int serverPort = 12345;
-
-    private JTextArea textArea;
-    private JTextField textField;
-    private PrintWriter out;
     private Socket socket;
+    private BufferedReader reader;
+    private PrintWriter writer;
+    private JTextArea chatArea;
+    private JTextField inputField;
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new ChatClient().createAndShowGUI());
-    }
-
-    public void createAndShowGUI() {
-        // Set up the main frame
+    public ChatClient() {
+        // Create the GUI
         JFrame frame = new JFrame("Chat Client");
-        frame.setLayout(new BorderLayout());
+        frame.setSize(400, 500);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        // Set up the chat history area
-        textArea = new JTextArea(15, 50);
-        textArea.setEditable(false);
-        textArea.setLineWrap(true);
-        textArea.setWrapStyleWord(true);
-        textArea.setFont(new Font("Arial", Font.PLAIN, 14));
-        textArea.setBackground(new Color(240, 240, 240));
-        textArea.setForeground(new Color(50, 50, 50));
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        frame.add(scrollPane, BorderLayout.CENTER);
+        chatArea = new JTextArea();
+        chatArea.setEditable(false); // Make chat area read-only
+        chatArea.setLineWrap(true);
+        chatArea.setWrapStyleWord(true);
 
-        // Set up the message input field
-        textField = new JTextField(50);
-        textField.setFont(new Font("Arial", Font.PLAIN, 14));
-        textField.setBackground(new Color(255, 255, 255));
-        textField.setForeground(new Color(0, 0, 0));
-        textField.addActionListener(e -> sendMessage());
-        frame.add(textField, BorderLayout.SOUTH);
-
-        // Create a panel for additional layout (e.g., a button to send messages if needed)
-        JPanel bottomPanel = new JPanel();
-        bottomPanel.setLayout(new FlowLayout(FlowLayout.RIGHT));
+        inputField = new JTextField();
         JButton sendButton = new JButton("Send");
-        sendButton.setFont(new Font("Arial", Font.BOLD, 14));
-        sendButton.setBackground(new Color(70, 130, 180));
-        sendButton.setForeground(Color.WHITE);
-        sendButton.addActionListener(e -> sendMessage());
-        bottomPanel.add(sendButton);
-        frame.add(bottomPanel, BorderLayout.SOUTH);
 
-        // Set up frame size and visibility
-        frame.pack();
-        frame.setLocationRelativeTo(null); // Center the window
+        // Add components to the frame
+        frame.setLayout(new BorderLayout());
+        frame.add(new JScrollPane(chatArea), BorderLayout.CENTER);
+        frame.add(inputField, BorderLayout.SOUTH);
+        frame.add(sendButton, BorderLayout.EAST);
+
+        // Add action listener to the send button
+        sendButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                sendMessage();
+            }
+        });
+
+        // Add action listener to the input field for Enter key
+        inputField.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                sendMessage();
+            }
+        });
+
         frame.setVisible(true);
 
         // Connect to the server
@@ -64,29 +56,35 @@ public class ChatClient {
 
     private void connectToServer() {
         try {
-            socket = new Socket(serverAddress, serverPort);
-            out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            socket = new Socket("localhost", 12345); // Connect to the server
+            reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            writer = new PrintWriter(socket.getOutputStream(), true);
 
-            String serverMessage;
-            while ((serverMessage = in.readLine()) != null) {
-                if (serverMessage.equals("Enter your name: ")) {
-                    String name = JOptionPane.showInputDialog("Enter your name:");
-                    out.println(name);
-                } else {
-                    textArea.append(serverMessage + "\n");
+            // Start a thread to listen for incoming messages
+            new Thread(() -> {
+                try {
+                    String message;
+                    while ((message = reader.readLine()) != null) {
+                        chatArea.append(message + "\n");
+                    }
+                } catch (IOException e) {
+                    chatArea.append("Connection closed.\n");
                 }
-            }
+            }).start();
         } catch (IOException e) {
-            e.printStackTrace();
+            chatArea.append("Unable to connect to the server.\n");
         }
     }
 
     private void sendMessage() {
-        String message = textField.getText();
+        String message = inputField.getText().trim();
         if (!message.isEmpty()) {
-            out.println(message);
-            textField.setText("");  // Clear the text field after sending
+            writer.println(message); // Send the message to the server
+            inputField.setText(""); // Clear the input field
         }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(ChatClient::new);
     }
 }

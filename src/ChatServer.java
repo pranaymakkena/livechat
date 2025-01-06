@@ -3,82 +3,58 @@ import java.net.*;
 import java.util.*;
 
 public class ChatServer {
-    private static Set<PrintWriter> clientWriters = new HashSet<>();
-    private static Set<String> clientNames = new HashSet<>();
+    private static final int PORT = 12345;
+    private static Set<PrintWriter> clientWriters = Collections.synchronizedSet(new HashSet<>());
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         System.out.println("Chat server started...");
-        int port = 12345;  // Define port
-        ServerSocket serverSocket = new ServerSocket(port);
-        
-        while (true) {
-            new ClientHandler(serverSocket.accept()).start();
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("New client connected: " + clientSocket);
+                new ClientHandler(clientSocket).start();
+            }
+        } catch (IOException e) {
+            System.err.println("Error starting server: " + e.getMessage());
         }
     }
 
     private static class ClientHandler extends Thread {
-        private String clientName;
         private Socket socket;
-        private PrintWriter out;
-        private BufferedReader in;
+        private PrintWriter writer;
 
         public ClientHandler(Socket socket) {
             this.socket = socket;
         }
 
+        @Override
         public void run() {
-            try {
-                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                out = new PrintWriter(socket.getOutputStream(), true);
-                synchronized (clientWriters) {
-                    clientWriters.add(out);
-                }
-
-                out.println("Enter your name: ");
-                clientName = in.readLine();
-                synchronized (clientNames) {
-                    if (clientNames.contains(clientName)) {
-                        out.println("Name already taken. Please choose another one.");
-                        return;
-                    }
-                    clientNames.add(clientName);
-                }
-
-                broadcast(clientName + " has joined the chat!");
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                writer = new PrintWriter(socket.getOutputStream(), true);
+                clientWriters.add(writer);
 
                 String message;
-                while ((message = in.readLine()) != null) {
-                    if (message.equalsIgnoreCase("quit")) {
-                        break;
-                    }
-                    broadcast(clientName + ": " + message);
+                while ((message = reader.readLine()) != null) {
+                    System.out.println("Message received: " + message);
+                    broadcast(message);
                 }
-
             } catch (IOException e) {
-                e.printStackTrace();
+                System.err.println("Connection error: " + e.getMessage());
             } finally {
+                if (writer != null) {
+                    clientWriters.remove(writer);
+                }
                 try {
                     socket.close();
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    System.err.println("Error closing socket: " + e.getMessage());
                 }
-
-                synchronized (clientWriters) {
-                    clientWriters.remove(out);
-                }
-                synchronized (clientNames) {
-                    clientNames.remove(clientName);
-                }
-
-                broadcast(clientName + " has left the chat.");
             }
         }
 
         private void broadcast(String message) {
-            synchronized (clientWriters) {
-                for (PrintWriter writer : clientWriters) {
-                    writer.println(message);
-                }
+            for (PrintWriter writer : clientWriters) {
+                writer.println(message);
             }
         }
     }

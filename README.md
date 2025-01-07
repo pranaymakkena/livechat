@@ -17,6 +17,7 @@ A real-time chat application built with Java that allows multiple users to commu
 ~~~bash
 git clone https://github.com/pranaymakkena/livechat.git
 cd livechat
+cd src
 ~~~
 
 - Compile the Code. Open a terminal in the src folder and run:
@@ -33,10 +34,11 @@ java ChatServer.java
 
 - Run the Client. In a new terminal, start the client by running:
 ~~~bash
+cd src
 java ChatClient.java
 ~~~
 
 ## Usage
-- Start the server.
-- Launch one or more clients.
-- Clients can send messages, and all connected clients will receive them in real-time.
+1. Start the server.
+2. Launch one or more clients.
+3. Clients can send messages, and all connected clients will receive them in real-time.
